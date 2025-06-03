@@ -1,0 +1,135 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © KarinTingtingYang
+
+//@version=6
+// Strategy: MA Crossover with Clean Market Tracking
+// Author: KarinTingtingYang
+
+strategy("MA Crossover with Clean Market Tracking", 
+     overlay=true,
+     initial_capital=5000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=15,
+     commission_type=strategy.commission.percent,
+     commission_value=0.1,
+     slippage=3,
+     process_orders_on_close=true,
+     calc_on_every_tick=true)
+
+// === 1. INDICATOR CALCULATIONS ========================================
+
+fastMA    = ta.ema(close, 13)
+slowMA    = ta.ema(close, 50)
+atr       = ta.atr(14)
+weeklyMA  = request.security(syminfo.tickerid, "W", ta.sma(close, 20), lookahead=barmerge.lookahead_on)
+
+sma200    = ta.sma(close, 200)
+sma50     = ta.sma(close, 50)
+
+// === 2. ENTRY CONDITIONS ==============================================
+
+bullMarket     = close > sma200 and sma50 > sma200
+session        = input.session("0930-1600", "Trading Session")
+inSession      = not na(time(timeframe.period, session))
+notOverbought  = ta.rsi(close, 14) < 65
+aboveWeekly    = close > weeklyMA
+
+// Volatility & Volume Filters
+atrRatio       = atr / close
+volatilityOkay = atrRatio > 0.01
+volumeOkay     = volume > ta.sma(volume, 20)
+
+// Filter out quarterly months
+notQuarterMonth = not (month == 1 or month == 4 or month == 7 or month == 10)
+
+longCondition = ta.crossover(fastMA, slowMA) and 
+                 bullMarket and 
+                 inSession and 
+                 notOverbought and 
+                 aboveWeekly and 
+                 volatilityOkay and 
+                 volumeOkay and 
+                 notQuarterMonth
+
+// === 3. PERFORMANCE TRACKING ==========================================
+
+var float bullMarketProfit  = 0.0
+var float bearMarketProfit  = 0.0
+var float prevNetProfit     = 0.0
+var bool  lastWasBull       = false
+var int   lastCountedTrade  = na
+
+// === 4. ORDER EXECUTION ==============================================
+
+// Adjust position size based on volatility
+volatilityScore = atr / close
+positionSize    = volatilityScore < 0.015 ? 20 : 10
+
+if longCondition
+    lastWasBull := bullMarket
+    strategy.entry("Buy", strategy.long, qty=positionSize)
+
+if ta.crossunder(fastMA, slowMA)
+    strategy.close("Buy")
+
+// Track profit changes manually
+currentNetProfit = strategy.netprofit
+
+if currentNetProfit != prevNetProfit
+    profitDiff = currentNetProfit - prevNetProfit
+    if lastWasBull
+        bullMarketProfit += profitDiff
+    else
+        bearMarketProfit += profitDiff
+    prevNetProfit := currentNetProfit
+
+// === 5. PERFORMANCE TABLE =============================================
+
+// Create table once
+var table perfTable = table.new(position.top_right, 2, 3, border_width=1)
+
+// Track closed trades by market type
+if strategy.closedtrades > 0
+    lastTradeIndex = strategy.closedtrades - 1
+    if lastTradeIndex != lastCountedTrade
+        lastProfitPoints   = strategy.closedtrades.profit(lastTradeIndex)
+        tradeSize          = strategy.closedtrades.size(lastTradeIndex)
+        lastProfitCurrency = lastProfitPoints * tradeSize
+        if lastWasBull
+            bullMarketProfit += lastProfitCurrency
+        else
+            bearMarketProfit += lastProfitCurrency
+        lastCountedTrade := lastTradeIndex
+
+// Update the table on the final bar
+if barstate.islast
+    table.cell(perfTable, 0, 0, "Market", bgcolor=color.gray)
+    table.cell(perfTable, 1, 0, "Profit", bgcolor=color.gray)
+    table.cell(perfTable, 0, 1, "Bull", bgcolor=color.new(color.green, 70))
+    table.cell(perfTable, 1, 1, "$" + str.tostring(math.round(bullMarketProfit, 2)), bgcolor=color.new(color.green, 70))
+    table.cell(perfTable, 0, 2, "Bear", bgcolor=color.new(color.red, 70))
+    table.cell(perfTable, 1, 2, "$" + str.tostring(math.round(bearMarketProfit, 2)), bgcolor=color.new(color.red, 70))
+
+// === 6. EXIT RULES ====================================================
+
+// Time-based exit after 20 bars
+maxBarsInTrade = 20
+var int barsSinceEntry = na
+
+if strategy.opentrades > 0
+    barsSinceEntry := na(barsSinceEntry) ? 1 : barsSinceEntry + 1
+else
+    barsSinceEntry := na
+
+if barsSinceEntry >= maxBarsInTrade
+    strategy.close("Buy")
+
+// ATR-based trailing stop
+strategy.exit("Exit Buy", "Buy",
+     trail_points=atr * 3,
+     trail_offset=atr * 1)
+
+
+// === 7. PLOT MAs FOR VISUAL REFERENCE ================================
+plot(fastMA, "Fast MA", color.blue)
+plot(slowMA, "Slow MA", color.red)
