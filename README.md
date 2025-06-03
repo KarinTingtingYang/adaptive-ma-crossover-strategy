@@ -19,3 +19,6 @@ This is a Pine Script strategy built for TradingView that performs:
 This script was built to demonstrate applied algorithmic trading logic and performance analytics in Pine Script v6. It is provided for **educational and informational purposes only**. It does **not constitute financial advice** or a recommendation to buy or sell any securities or financial instruments. 
 
 Use at your own risk. Past performance is not indicative of future results. Always consult a professional financial advisor before making any trading decisions.
+
+## Example display
+![image](https://github.com/user-attachments/assets/45c4b651-5e4c-451a-a083-6b3857295d1f)
