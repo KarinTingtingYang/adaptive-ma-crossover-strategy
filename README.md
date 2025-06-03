@@ -21,4 +21,5 @@ This script was built to demonstrate applied algorithmic trading logic and perfo
 Use at your own risk. Past performance is not indicative of future results. Always consult a professional financial advisor before making any trading decisions.
 
 ## Example display
-![image](https://github.com/user-attachments/assets/45c4b651-5e4c-451a-a083-6b3857295d1f)
+![image](https://github.com/user-attachments/assets/71fb06e5-5a6b-4955-99f1-5c1fd2491f39)
+
